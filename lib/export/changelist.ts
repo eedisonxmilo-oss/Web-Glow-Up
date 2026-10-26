@@ -1,7 +1,8 @@
 // Developer change list (SPEC.md Phase 3): every change in order, in plain words, with CSS / HTML
 // a developer can copy. Exported as Markdown or plain text from the same content.
 
-import { noteNumbers } from '../model/project';
+import { animationCss, VIEW_SCRIPT } from '../model/animation';
+import { describeOp, noteNumbers } from '../model/project';
 import { BLOCK_ATTR } from '../model/selector';
 import type { Note, Op } from '../model/types';
 
@@ -96,7 +97,7 @@ function items(input: ChangeListInput, doc: Document): Item[] {
   const blockChange = new Map<string, number>();
   input.ops.forEach((op, i) => op.kind === 'insertBlock' && blockChange.set(op.after.blockId, i + 1));
 
-  return input.ops.map((op, i) => {
+  const list = input.ops.map((op, i) => {
     const parts: Part[] = [];
     const n = op.noteId ? numbers.get(op.noteId) : undefined;
     const note = op.noteId ? noteById.get(op.noteId) : undefined;
@@ -171,9 +172,31 @@ function items(input: ChangeListInput, doc: Document): Item[] {
         parts.push({ code: prettyHtml(html, doc), lang: 'html' });
         break;
       }
+      case 'animation': {
+        const a = op.after;
+        title = describeOp(op);
+        parts.push({ p: where });
+        if (a.type === 'entrance' && a.trigger === 'view') {
+          parts.push({ p: 'Add the attribute data-gu-animate to this element, add this CSS, and add the scroll script at the end of this list once per page.' });
+        } else {
+          parts.push({ p: 'Add this CSS. It respects visitors who ask for reduced motion.' });
+        }
+        parts.push({ code: animationCss(op.selector, a, `gu-${a.preset}-${i + 1}`), lang: 'css' });
+        break;
+      }
     }
     return { title: `${i + 1}. ${title}${n ? ` [note ${n}]` : ''}`, parts };
   });
+  if (input.ops.some((o) => o.kind === 'animation' && o.after.type === 'entrance' && o.after.trigger === 'view')) {
+    list.push({
+      title: 'Scroll script (once per page)',
+      parts: [
+        { p: 'Needed by the “when scrolled into view” animations above. Add it once, just before </body>. Without it the content simply shows, never stays hidden.' },
+        { code: VIEW_SCRIPT, lang: 'html' },
+      ],
+    });
+  }
+  return list;
 }
 
 function intro(input: ChangeListInput): string[] {

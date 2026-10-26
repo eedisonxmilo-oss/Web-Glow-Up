@@ -6,6 +6,7 @@
 // reproduces the same DOM states the user saw while editing.
 
 import { applyOp, isInEffect, opKeys, reapplyKeys, revertOp, type ApplyContext } from './ops';
+import { newId } from './ids';
 import { findBlock, resolveTarget } from './selector';
 import type { Op, OpStatus } from './types';
 
@@ -176,44 +177,72 @@ export class EditSession {
 
   /** Record a new op. Returns the op that's now on top of the history. */
   commit(op: Op, opts: CommitOptions = {}): Op {
+    return this.commitGroup([op], opts)[0];
+  }
+
+  /**
+   * Record ops made by one gesture (e.g. one change applied to several selected elements). With
+   * more than one op they share a group id and undo / redo as a single step. Returns the ops now
+   * on top of the history (the existing ones when a coalescing commit merged into them).
+   */
+  commitGroup(ops: Op[], opts: CommitOptions = {}): Op[] {
     if (this._view !== 'after') throw new Error('Switch to "After" before editing');
-    const top = this.ops[this.ops.length - 1];
-    if (
-      opts.coalesceKey &&
+    if (!ops.length) return [];
+    const tail = this.ops.slice(-ops.length);
+    const canMerge =
+      !!opts.coalesceKey &&
       opts.coalesceKey === this.lastCoalesceKey &&
-      top &&
-      top.kind === op.kind &&
-      top.selector === op.selector &&
       this.redoStack.length === 0 &&
-      this.status.get(top.id) === 'applied'
-    ) {
-      if (top.kind === 'style' && op.kind === 'style') {
-        // Keep the original "before"; take the newest "after" for each property.
-        for (const [prop, v] of Object.entries(op.before)) if (!(prop in top.before)) top.before[prop] = v;
-        Object.assign(top.after, op.after);
-      } else {
-        (top as { after: unknown }).after = op.after;
-      }
-      if (!opts.alreadyApplied) {
-        const el = this.resolve(top);
-        if (el) applyOp(el, top, this.ctx);
-      }
+      tail.length === ops.length &&
+      (ops.length === 1 ? !tail[0].group : !!tail[0].group && tail.every((t) => t.group === tail[0].group)) &&
+      tail.every((t, i) => t.kind === ops[i].kind && t.selector === ops[i].selector && this.status.get(t.id) === 'applied');
+    if (canMerge) {
+      tail.forEach((top, i) => this.mergeInto(top, ops[i], !!opts.alreadyApplied));
       this.emit();
-      return top;
+      return tail;
     }
 
     this.lastCoalesceKey = opts.coalesceKey ?? null;
     this.redoStack = [];
-    this.ops.push(op);
-    if (opts.alreadyApplied) {
-      this.status.set(op.id, 'applied');
-      const el = this.resolve(op);
-      if (el) this.elements.set(op.id, el);
-    } else {
-      this.tryApply(op);
+    const group = ops.length > 1 ? newId('g_') : undefined;
+    for (const op of ops) {
+      if (group) op.group = group;
+      else delete op.group;
+      this.ops.push(op);
+      if (opts.alreadyApplied) {
+        this.status.set(op.id, 'applied');
+        const el = this.resolve(op);
+        if (el) this.elements.set(op.id, el);
+      } else {
+        this.tryApply(op);
+      }
     }
     this.emit();
-    return op;
+    return ops;
+  }
+
+  private mergeInto(top: Op, op: Op, alreadyApplied: boolean): void {
+    if (top.kind === 'style' && op.kind === 'style') {
+      // Keep the original "before"; take the newest "after" for each property.
+      for (const [prop, v] of Object.entries(op.before)) if (!(prop in top.before)) top.before[prop] = v;
+      Object.assign(top.after, op.after);
+    } else {
+      (top as { after: unknown }).after = op.after;
+    }
+    if (!alreadyApplied) {
+      const el = this.resolve(top);
+      if (el) applyOp(el, top, this.ctx);
+    }
+  }
+
+  /** The ops of the newest undo step (one op, or every op of its group). */
+  private topStep(stack: Op[]): number {
+    const top = stack[stack.length - 1];
+    if (!top) return 0;
+    if (!top.group) return 1;
+    let n = 0;
+    while (n < stack.length && stack[stack.length - 1 - n].group === top.group) n++;
+    return n;
   }
 
   /** Tell the session which element an op targets (avoids re-resolving right after creation). */
@@ -221,22 +250,30 @@ export class EditSession {
     this.elements.set(opId, el);
   }
 
+  /** Undo the newest step (a whole group at once). Returns the oldest op of that step. */
   undo(): Op | null {
     if (!this.canUndo()) return null;
-    const op = this.ops.pop()!;
-    this.tryRevert(op);
-    this.status.delete(op.id);
-    this.redoStack.push(op);
+    let op: Op | null = null;
+    for (let n = this.topStep(this.ops); n > 0; n--) {
+      op = this.ops.pop()!;
+      this.tryRevert(op);
+      this.status.delete(op.id);
+      this.redoStack.push(op);
+    }
     this.lastCoalesceKey = null;
     this.emit();
     return op;
   }
 
+  /** Redo the next step (a whole group at once). Returns the newest op of that step. */
   redo(): Op | null {
     if (!this.canRedo()) return null;
-    const op = this.redoStack.pop()!;
-    this.ops.push(op);
-    this.tryApply(op);
+    let op: Op | null = null;
+    for (let n = this.topStep(this.redoStack); n > 0; n--) {
+      op = this.redoStack.pop()!;
+      this.ops.push(op);
+      this.tryApply(op);
+    }
     this.lastCoalesceKey = null;
     this.emit();
     return op;

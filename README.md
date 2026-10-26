@@ -1,7 +1,8 @@
-# Website Glow-Up (Phases 1–3: editor, fix library, notes, exports)
+# Website Glow-Up (Phases 1–3 + 2B, editor quality bar 6A)
 
 Free browser extension: open a live page, improve it in place, and your edits stay on your device.
-`SPEC.md` is the source of truth. This repo implements **Phases 1, 2 and 3**.
+`SPEC.md` is the source of truth. This repo implements **Phases 1, 2, 2B (animations) and 3**, and the
+**editor quality bar (section 6A)**. Phases 4 and 5 are next.
 
 ## Commands
 
@@ -32,18 +33,61 @@ npm run harness        # dev-only: try the editor on real sites without the exte
 ## Using it
 
 - Toolbar button → **Edit this page** turns edit mode on (`Alt+Shift+E` toggles it directly).
-- Hover to highlight, click to select. The breadcrumb (and **Parent**) select ancestors.
-- Double-click or press **Enter** to edit text. **Enter** finishes, **Shift+Enter** adds a new line, **Esc** cancels.
-- Style panel: text color, font size, weight, font, alignment, background, padding, margin, corner radius.
-- **Hide**, **Move up / down** (among siblings), **Image…** (replaces an `<img>` or a CSS background image with a file from your computer).
-- Undo **Ctrl/⌘+Z**, redo **Ctrl/⌘+Shift+Z** or **Ctrl+Y**. **Esc** deselects.
-- **Before / After** switches all edits off and on.
-- Edits save automatically per page (origin + path). When you come back they are re-applied. Edits that can't find their element are listed as **"couldn't re-apply"** (try again, or remove them).
+- **Ctrl/⌘+K** opens the command palette (every action by name). **?** shows all shortcuts.
 - Popup → **Projects**: open, rename, delete.
 
-The panel has four tabs: **Edit** (above), **Fix library**, **Notes** and **Export**.
+The panel has five tabs: **Edit**, **Fixes**, **Motion**, **Notes** and **Export**.
 
-**Fix library**
+**Selecting** (SPEC 6A)
+- Hover to highlight, click to select, **Shift+click** to add or remove more. Every tool works on the whole
+  selection, and one gesture is one undo step.
+- Keyboard: **Tab / Shift+Tab** next / previous sibling, **Enter** first child (edits text when there is
+  none), **Shift+Enter** parent, **Esc** deselect. The breadcrumb selects any ancestor.
+- **Find** (top of the Edit tab, or **/**): by visible text or CSS selector; matches are highlighted,
+  **Enter** steps through them, **Select all** selects every match.
+- **All like this** (**L**): selects every element with the same tag and classes, so one change restyles all.
+- Cross-origin iframes say "can't edit inside it" (you can still hide, move or resize the frame).
+
+**Editing**
+- **F2** or double-click edits text (**Enter** finishes, **Shift+Enter** new line, **Esc** cancels). With
+  several elements selected, the new text goes into all of them.
+- **Resize** with the handles on the right edge, bottom edge and corner; the live size is shown and
+  **Shift** keeps the aspect ratio. Edges snap to nearby edges and centres (smart guides).
+- **Arrow keys** nudge 1px, **Shift+arrow** 10px (CSS `translate`, so layout around it doesn't shift);
+  a burst of presses is one undo step. Smart guides show when edges line up.
+- **Spacing is never changed by accident:** padding / margin bands can only be dragged in **Spacing mode**
+  (**S**) or while holding **Alt**.
+- Style panel: text color, font size, weight, font, alignment, background, padding, margin (with preset
+  values), corner radius. Brand colors sit first next to every color picker, plus an eyedropper where the
+  browser has one (Chrome, Edge). A small live contrast badge sits under the text color.
+- Drag a field's label (**Font size**, **Padding**, **Margin**, **Corner radius**) left/right to scrub it.
+- **Copy style / Paste style** (**Ctrl+Alt+C / V**) between elements.
+- **Hide** (**Delete**), **Move up / down**, **Image…** (an `<img>` or CSS background image, from your computer).
+- Undo **Ctrl/⌘+Z**, redo **Ctrl/⌘+Shift+Z** or **Ctrl+Y**. **Before / After** switches all edits off and on.
+- Edits save automatically per page (origin + path) and re-apply when you come back, including after the
+  site re-renders itself. Edits that can't find their element are listed as **"couldn't re-apply"**.
+
+**Seeing spacing and alignment**
+- The selected element shows its margins (orange, outside) and padding (green, inside) with values.
+- Hover another element to see the distance to the selected one. Hold **Alt+Shift** and hover to see any
+  element's spacing without selecting it. With several selected, the gaps between them are shown, green
+  with "=" when they're all equal.
+- **Clean canvas** (**\\**) hides every on-page control for keyboard users.
+
+**Motion** (SPEC Phase 2B)
+- Select elements, pick an **entrance** (fade in, slide up, slide in from left/right, scale in) that starts
+  on page load or when scrolled into view, set duration, delay and easing, then **Add entrance**. With
+  several selected it's **staggered** (an offset delay per element, in page order).
+- **Hover effects** for buttons, cards and images: lift, grow, glow, color shift.
+- **▶ Replay** the selection, or **Replay whole page**. Animated elements carry a "✦ motion" badge, and
+  every animation is listed in the change list.
+- Motion rules built in: entrances move and fade only (transform / opacity) with ease-out, 300–500 ms by
+  default, hover 150–200 ms, never above 1 s, nothing loops, and `prefers-reduced-motion` turns movement off.
+  Glow and color shift change paint (shadow / background) on the hovered element only.
+- The change list includes the CSS keyframes, the scroll-trigger script (once per page) and the
+  reduced-motion query. Content is hidden only by a class the script adds, so it can never stay invisible.
+
+**Fixes**
 - **Site brand** at the top: the page's accent, text and background colors, heading/body fonts and button
   corners, read from computed styles the first time you open the tab. Click a color dot or use the pickers
   to change them; **Re-read** reads the page again. They only style *new* fixes and are saved with the project.
@@ -91,6 +135,23 @@ saved and come back as soon as you click **Edit this page**. You can turn this o
 checkbox in the popup. Deleting a site's last project removes the permission again. Glow-Up never asks for
 "all sites", and the install prompt shows no host access.
 
+## Keeping edits on dynamic sites, and `dom-mutator` (SPEC section 4)
+
+The spec asks to evaluate the open-source [`dom-mutator`](https://www.npmjs.com/package/dom-mutator) before
+writing our own. Decision: **keep Glow-Up's own re-apply layer.** `dom-mutator` applies mutations by CSS
+selector and keeps them applied with a MutationObserver, which suits A/B-test style changes. Glow-Up's edit
+model needs more than that, which `dom-mutator` doesn't cover:
+
+- a fingerprint fallback when a selector breaks, and an honest "couldn't re-apply" list instead of silence;
+- ops replayed in order with exact undo / redo, grouped steps and an instant Before / After;
+- inserted blocks, replaced images from local storage and animation ops in the same history.
+
+What we took from the same idea: one MutationObserver per page, throttled to a single check per animation
+frame (with a timer for background tabs) so a re-render is corrected before it's painted; only the newest op
+per element and property is re-applied; and each op is re-applied a limited number of times so we never fight
+a page that keeps changing. Optimizely documents that this approach can still miss very fast hydration
+updates, so test React / Next.js sites specifically (SPEC section 7).
+
 ## Hard rules check (SPEC section 2)
 
 - No server, accounts, analytics, ads, AI or paid APIs. The built bundle has no `fetch`/XHR/beacon calls.
@@ -109,7 +170,10 @@ lib/brand.ts    brand capture: colors, fonts and button style from computed styl
 lib/presets.ts  fix library presets: (brand, field values) -> inline-styled block HTML or style changes
 lib/settings.ts agency branding settings (storage.local)
 lib/export/     canvas layout for PNG/PDF pages, a minimal local PDF writer, the developer change list
-lib/editor/     in-page editor: controller (load/save/restore), Shadow DOM host, UI, fix library tab, CSS
+lib/model/animation.ts  Phase 2B: runs animation ops (Web Animations API) and writes their CSS / JS
+lib/editor/     in-page editor: controller (load/save/restore), Shadow DOM host, UI (selection, keyboard,
+                gestures), overlays (spacing, measuring, guides, handles), geometry, command palette,
+                Fixes / Motion / Export tabs, CSS
 entrypoints/    background (inject, per-site restore scripts), editor content script, popup
 tests/          vitest suites for the model and storage
 dev/            harness for trying the editor on real pages without loading the extension

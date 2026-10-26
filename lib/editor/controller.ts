@@ -7,12 +7,13 @@ import type { ChangeListInput } from '../export/changelist';
 import type { Shot } from '../export/compose';
 import type { CaptureResult } from '../messages';
 import { newId } from '../model/ids';
-import { assetIds, createImageOp, createInsertBlockOp, createStyleOp } from '../model/ops';
+import { replayAnimation } from '../model/animation';
+import { assetIds, createAnimationOp, createImageOp, createInsertBlockOp, createStyleOp } from '../model/ops';
 import { activeVersion, createProject, noteNumbers, urlKey } from '../model/project';
 import { BLOCK_ATTR, findBlock } from '../model/selector';
 import { DEFAULT_AGENCY, normalizeAgency, type AgencySettings } from '../settings';
 import { EditSession, type CommitOptions } from '../model/session';
-import type { BlockPosition, BrandCapture, Note, Op, Project } from '../model/types';
+import type { AnimationValue, BlockPosition, BrandCapture, Note, Op, Project } from '../model/types';
 import { brandStyle, type Preset } from '../presets';
 import { ShadowHost } from './host';
 import { EditorUI } from './ui';
@@ -189,6 +190,33 @@ export class GlowUp {
 
   commit(op: Op, opts?: CommitOptions): Op {
     return this.session.commit(op, opts);
+  }
+
+  /** One gesture on several elements: one undo step. */
+  commitGroup(ops: Op[], opts?: CommitOptions): Op[] {
+    return this.session.commitGroup(ops, opts);
+  }
+
+  // ---------- motion ----------
+
+  /** Add the same animation to each element; entrances are staggered in page order. */
+  addAnimations(els: Element[], value: AnimationValue, stagger = 0): Op[] {
+    const ordered = [...els].sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+    const ops = ordered.map((el, i) => createAnimationOp(el, value.type === 'entrance' ? { ...value, delay: value.delay + i * stagger } : value));
+    return this.commitGroup(ops);
+  }
+
+  /** Play animations again: those on `els`, or every one on the page. */
+  replayAnimations(els?: Element[]): number {
+    let n = 0;
+    for (const op of this.session.getOps()) {
+      if (op.kind !== 'animation') continue;
+      const el = this.session.changedElement(op);
+      if (!el || (els && !els.includes(el))) continue;
+      replayAnimation(el, op.id);
+      n++;
+    }
+    return n;
   }
 
   retryFailed(): number {
@@ -417,14 +445,15 @@ export class GlowUp {
 
   // ---------- images ----------
 
-  async replaceImage(el: Element, mode: 'img' | 'bg', file: File): Promise<void> {
+  /** Replace one or more images with the same file (stored once). */
+  async replaceImage(targets: { el: Element; mode: 'img' | 'bg' }[], file: File): Promise<void> {
     const dataUrl = await readImage(file);
     const project = this.ensureProject();
     const asset: Asset = { id: newId('img_'), projectId: project.id, dataUrl, name: file.name, createdAt: Date.now() };
     await this.store.saveProject(project);
     await this.store.putAsset(asset);
     this.assets.set(asset.id, dataUrl);
-    this.commit(createImageOp(el, asset.id, mode));
+    this.commitGroup(targets.map((t) => createImageOp(t.el, asset.id, t.mode)));
   }
 
   // ---------- keeping edits in place ----------
@@ -432,15 +461,24 @@ export class GlowUp {
   /** Set while the user is typing in an element, so the guard doesn't "restore" their text. */
   guardPaused = false;
 
-  /** Re-apply edits the site's own scripts overwrite after load (see EditSession.reassert). */
+  /**
+   * Re-apply edits the site's own scripts overwrite after load (see EditSession.reassert).
+   * Throttled to one check per animation frame (SPEC 6A), so a re-render is corrected before it
+   * is painted rather than flickering. Background tabs don't run frames, so a timer backs it up.
+   */
   private guard(): void {
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let pending = false;
+    const run = () => {
+      if (!pending) return;
+      pending = false;
+      if (!this.guardPaused) this.session.reassert();
+    };
     const observer = new MutationObserver(() => {
-      if (timer || this.guardPaused || !this.session.getOps().length) return;
-      timer = setTimeout(() => {
-        timer = undefined;
-        if (!this.guardPaused) this.session.reassert();
-      }, 250);
+      if (pending || this.guardPaused || !this.session.getOps().length) return;
+      pending = true;
+      const win = this.doc.defaultView;
+      if (win && typeof win.requestAnimationFrame === 'function') win.requestAnimationFrame(run);
+      setTimeout(run, 250);
     });
     observer.observe(this.doc.documentElement, {
       subtree: true,

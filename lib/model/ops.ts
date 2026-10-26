@@ -1,9 +1,12 @@
 // Creating operations from the live DOM, and applying / reverting a single operation.
 
+import { clampAnimation, isAnimationRunning, startAnimation, stopAnimation } from './animation';
 import { newId } from './ids';
 import { sanitizeHtml } from './sanitize';
 import { BLOCK_ATTR, buildSelector, findBlock, fingerprint } from './selector';
 import type {
+  AnimationOp,
+  AnimationValue,
   BlockPosition,
   HideOp,
   ImageBefore,
@@ -144,6 +147,10 @@ export function createInsertBlockOp(
   };
 }
 
+export function createAnimationOp(el: Element, value: AnimationValue): AnimationOp {
+  return { ...base(el), kind: 'animation', before: null, after: clampAnimation(value) };
+}
+
 function insertBlock(anchor: Element, op: InsertBlockOp): void {
   const doc = anchor.ownerDocument;
   if (findBlock(doc, op.after.blockId)?.isConnected) return; // already there
@@ -190,6 +197,9 @@ export function applyOp(el: Element, op: Op, ctx: ApplyContext): void {
     case 'insertBlock':
       insertBlock(el, op);
       return;
+    case 'animation':
+      startAnimation(el, op);
+      return;
   }
 }
 
@@ -220,6 +230,9 @@ export function revertOp(el: Element, op: Op): void {
     case 'insertBlock':
       findBlock(el.ownerDocument, op.after.blockId)?.remove();
       return;
+    case 'animation':
+      stopAnimation(el, op.id);
+      return;
   }
 }
 
@@ -241,6 +254,8 @@ export function opKeys(op: Op): string[] {
       return op.after.mode === 'bg' ? ['style:background-image'] : ['src'];
     case 'insertBlock':
       return [`block:${op.after.blockId}`];
+    case 'animation':
+      return [`anim:${op.id}`];
     default:
       return [];
   }
@@ -287,6 +302,9 @@ export function isInEffect(el: Element, op: Op, keys: string[], ctx: ApplyContex
     } else if (key.startsWith('block:')) {
       // Re-rendering frameworks sometimes drop nodes they didn't create.
       if (op.kind === 'insertBlock' && !findBlock(doc, op.after.blockId)) return false;
+    } else if (key.startsWith('anim:')) {
+      // A re-render can swap the element for a new one without our listeners.
+      if (op.kind === 'animation' && !isAnimationRunning(el, op.id)) return false;
     } else {
       const want = styleFor(op, key, ctx);
       if (!want) continue;
@@ -300,7 +318,7 @@ export function isInEffect(el: Element, op: Op, keys: string[], ctx: ApplyContex
 
 /** Re-apply only the given keys of `op`. */
 export function reapplyKeys(el: Element, op: Op, keys: string[], ctx: ApplyContext): void {
-  if (keys.includes('text') || keys.includes('src') || op.kind === 'insertBlock') {
+  if (keys.includes('text') || keys.includes('src') || op.kind === 'insertBlock' || op.kind === 'animation') {
     applyOp(el, op, ctx);
     return;
   }

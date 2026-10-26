@@ -5,3 +5,4 @@ export * from './selector';
 export * from './ops';
 export * from './session';
 export * from './project';
+export * from './animation';

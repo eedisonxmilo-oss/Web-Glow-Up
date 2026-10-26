@@ -9,13 +9,50 @@ export const EDITOR_CSS = `
 }
 button, input, select, textarea { font: inherit; color: inherit; }
 
-.hover-box, .select-box {
-  position: fixed; pointer-events: none; display: none;
-  border-radius: 2px;
+/* On-canvas overlay: every piece sits at 0,0 and is moved with transform only. */
+.ov, .ov > div { position: fixed; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.ov div { will-change: transform; }
+.hover-box, .select-box, .ov-find-box, .ov-band, .ov-line, .ov-guide, .ov-num, .ov-badge, .ov-handle, .ov-size {
+  position: fixed; left: 0; top: 0; pointer-events: none;
 }
+.hover-box, .select-box { border-radius: 2px; }
 .hover-box { outline: 2px dashed #8b5cf6; background: rgba(139, 92, 246, 0.08); }
+.hover-box.below .box-label { top: auto; bottom: -22px; border-radius: 0 0 3px 3px; }
+.hover-label { background: #4b5163; }
 .select-box { outline: 2px solid #6d28d9; box-shadow: 0 0 0 4px rgba(109, 40, 217, 0.18); }
+.select-box.secondary { outline: 2px solid #8b5cf6; box-shadow: none; }
 .select-box.editing { outline-color: #059669; box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.2); }
+
+.ov-find-box { outline: 2px solid #f59e0b; background: rgba(245, 158, 11, 0.12); border-radius: 2px; }
+.ov-band { display: flex; align-items: center; justify-content: center; }
+.ov-band.margin { background: rgba(249, 115, 22, 0.22); }
+.ov-band.padding { background: rgba(16, 185, 129, 0.22); }
+.ov-band.drag { pointer-events: auto; }
+.ov-band.drag.top, .ov-band.drag.bottom { cursor: ns-resize; }
+.ov-band.drag.left, .ov-band.drag.right { cursor: ew-resize; }
+.ov-band.drag.margin:hover { background: rgba(249, 115, 22, 0.4); }
+.ov-band.drag.padding:hover { background: rgba(16, 185, 129, 0.4); }
+.ov-band span, .ov-num, .ov-size, .ov-badge {
+  font: 600 10px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; white-space: nowrap;
+}
+.ov-band span { color: #fff; padding: 2px 3px; border-radius: 3px; }
+.ov-band.margin span { background: #ea580c; }
+.ov-band.padding span { background: #059669; }
+.ov-line.measure { background: #e5484d; }
+.ov-line.gap { background: #f59e0b; }
+.ov-line.gap.equal { background: #10b981; }
+.ov-num { padding: 3px 5px; border-radius: 4px; color: #fff; background: #e5484d; }
+.ov-num.gap { background: #d97706; }
+.ov-num.gap.equal { background: #059669; }
+.ov-guide { background: #ff2fb2; }
+.ov-badge { padding: 3px 6px; border-radius: 10px; background: rgba(109, 40, 217, 0.9); color: #fff; }
+.ov-handle {
+  width: 11px; height: 11px; background: #fff; border: 2px solid #6d28d9; border-radius: 3px; pointer-events: auto;
+}
+.ov-handle.h-e { cursor: ew-resize; }
+.ov-handle.h-s { cursor: ns-resize; }
+.ov-handle.h-se { cursor: nwse-resize; }
+.ov-size { margin-top: 0; padding: 3px 6px; border-radius: 4px; background: #1f2330; color: #fff; }
 .box-label {
   position: absolute; left: -2px; top: -22px; height: 20px; padding: 0 6px;
   background: #6d28d9; color: #fff; font-size: 11px; line-height: 20px; border-radius: 3px 3px 0 0;
@@ -25,7 +62,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .select-box.editing .box-label { background: #059669; }
 
 .panel {
-  position: fixed; top: 12px; right: 12px; width: 304px; max-height: calc(100vh - 24px);
+  position: fixed; top: 12px; right: 12px; width: 324px; max-height: calc(100vh - 24px);
   display: flex; flex-direction: column;
   background: #fff; border: 1px solid #d9dbe3; border-radius: 10px;
   box-shadow: 0 12px 32px rgba(15, 18, 30, 0.18), 0 2px 6px rgba(15, 18, 30, 0.08);
@@ -75,8 +112,52 @@ input[type=number], input[type=text], select {
   width: 100%; min-width: 0; height: 28px; padding: 0 6px; border: 1px solid #d9dbe3; border-radius: 6px; background: #fff;
 }
 input[type=color] { width: 44px; height: 28px; padding: 2px; border: 1px solid #d9dbe3; border-radius: 6px; background: #fff; cursor: pointer; }
-.quad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-.quad input { padding: 0 3px; text-align: center; }
+.quad, .quad5 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.quad5 { grid-template-columns: repeat(4, 1fr) 46px; gap: 3px; }
+.quad input, .quad5 input { padding: 0 2px; text-align: center; }
+.sp-preset { padding: 0 2px; font-size: 11px; }
+.scrub { cursor: ew-resize; user-select: none; text-decoration: underline dotted #b4b8c6; text-underline-offset: 3px; }
+.swatches { display: inline-flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+.eyedrop { padding: 1px 6px; font-size: 13px; line-height: 1.2; }
+.contrast-row { margin: -2px 0 0 98px; }
+.contrast { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 8px; background: #eceef3; color: #3f4456; }
+.contrast.aaa, .contrast.aa { background: #e7f6ef; color: #05603a; }
+.contrast.low { background: #fef3f2; color: #b42318; }
+.multi-note { background: #f4f0fd; border-radius: 6px; padding: 6px 8px; color: #4c1d95; }
+.actions .btn.on { border-color: #6d28d9; color: #6d28d9; background: #f4f0fd; }
+.actions .btn { overflow: hidden; text-overflow: ellipsis; padding: 6px 4px; font-size: 12px; }
+.find { display: flex; align-items: center; gap: 6px; }
+.find input { flex: 1; }
+.find-n { color: #7a8094; font-size: 11px; white-space: nowrap; }
+.status .mode-state:empty { display: none; }
+.status .mode-state { color: #6d28d9; font-weight: 600; }
+
+/* command palette + cheat sheet */
+.palette, .cheats {
+  position: fixed; inset: 0; background: rgba(15, 18, 30, 0.28); display: flex; align-items: flex-start; justify-content: center;
+  padding-top: 12vh; pointer-events: auto;
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2330;
+}
+.palette-card, .cheats-card {
+  width: min(560px, calc(100vw - 32px)); background: #fff; border-radius: 12px; overflow: hidden;
+  box-shadow: 0 24px 60px rgba(15, 18, 30, 0.35);
+}
+.palette input { width: 100%; height: 46px; border: 0; border-bottom: 1px solid #eceef3; border-radius: 0; padding: 0 16px; font-size: 15px; outline: none; }
+.palette ul { list-style: none; margin: 0; padding: 6px; max-height: 50vh; overflow: auto; }
+.palette li { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 7px; cursor: pointer; }
+.palette li.on { background: #f4f0fd; }
+.palette li.off { opacity: 0.45; cursor: default; }
+.palette .grp { margin-left: auto; color: #7a8094; font-size: 11px; }
+.palette kbd, .cheats dt { font: 11px/1 ui-monospace, SFMono-Regular, Consolas, monospace; background: #f1f2f6; border: 1px solid #e0e2ea; border-radius: 4px; padding: 3px 5px; white-space: nowrap; }
+.cheats-card { padding: 16px 18px; max-height: 76vh; overflow: auto; }
+.cheats h3 { margin: 0 0 4px; font-size: 15px; }
+.cheats dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; margin: 12px 0 0; align-items: center; }
+.cheats dt { justify-self: start; }
+.cheats dd { margin: 0; color: #3f4456; }
+
+/* motion tab */
+.mo-list { margin: 0; padding-left: 18px; color: #3f4456; }
+.mo-list li.hint { list-style: none; margin-left: -18px; }
 .unit { color: #7a8094; font-size: 11px; }
 .align { display: inline-flex; gap: 4px; }
 .align button { width: 32px; height: 28px; }
@@ -89,7 +170,7 @@ details.changes li.failed-op { color: #b42318; }
 .status { padding: 6px 10px; border-top: 1px solid #eceef3; color: #5c6275; font-size: 12px; background: #fafafc; display: flex; justify-content: space-between; }
 
 .tabs { display: flex; gap: 2px; padding: 0 8px; border-bottom: 1px solid #eceef3; background: #fafafc; }
-.tabs button { border: 0; background: transparent; padding: 7px 10px; cursor: pointer; color: #5c6275; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button { border: 0; background: transparent; padding: 7px 8px; cursor: pointer; color: #5c6275; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tabs button.on { color: #1f2330; font-weight: 600; border-bottom-color: #6d28d9; }
 .tabs .notes-n:not(:empty) { display: inline-block; min-width: 16px; padding: 0 4px; border-radius: 8px; background: #6d28d9; color: #fff; font-size: 10px; line-height: 16px; text-align: center; }
 .panel.min .tabs { display: none; }
@@ -130,7 +211,7 @@ details.changes li { margin-bottom: 2px; }
 
 .pins { position: fixed; inset: 0; width: 0; height: 0; }
 .pin {
-  position: fixed; display: none; align-items: center; justify-content: center;
+  position: fixed; left: 0; top: 0; display: none; align-items: center; justify-content: center;
   width: 22px; height: 22px; padding: 0; border-radius: 50%;
   background: #6d28d9; color: #fff; border: 2px solid #fff;
   font: 700 12px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

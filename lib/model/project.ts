@@ -1,3 +1,4 @@
+import { ENTRANCE_PRESETS, HOVER_PRESETS } from './animation';
 import { newId } from './ids';
 import type { Op, Project, Version } from './types';
 
@@ -49,6 +50,13 @@ export function describeOp(op: Op): string {
       return op.fallback.tag === 'body' && op.after.position === 'beforeend'
         ? `Added ${op.after.label}`
         : `Added ${op.after.label} ${where} ${op.fallback.tag === 'body' ? 'the page' : target}`;
+    }
+    case 'animation': {
+      const a = op.after;
+      const name = (a.type === 'entrance' ? ENTRANCE_PRESETS : HOVER_PRESETS).find((p) => p.id === a.preset)?.label ?? a.preset;
+      if (a.type === 'hover') return `Hover effect “${name}” on ${target}`;
+      const when = a.trigger === 'view' ? 'when scrolled into view' : 'on page load';
+      return `Animated ${target}: ${name} ${when}${a.delay ? `, ${a.delay} ms delay` : ''}`;
     }
   }
 }

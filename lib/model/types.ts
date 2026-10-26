@@ -2,7 +2,7 @@
 // Keep this file free of browser-extension APIs so other tools (e.g. Opportunity Engine)
 // can produce or consume projects later.
 
-export type OpKind = 'text' | 'style' | 'hide' | 'move' | 'insertBlock' | 'image';
+export type OpKind = 'text' | 'style' | 'hide' | 'move' | 'insertBlock' | 'image' | 'animation';
 
 /** Enough about an element to find it again when its selector no longer matches. */
 export interface ElementFingerprint {
@@ -76,8 +76,36 @@ interface OpBase {
   /** Used if the selector breaks. */
   fallback: ElementFingerprint;
   noteId?: string;
+  /**
+   * Ops made by one gesture on several selected elements share a group id, so they undo and
+   * redo as one step. Always consecutive in the op list.
+   */
+  group?: string;
   createdAt: number;
 }
+
+export type EntrancePreset = 'fade-in' | 'slide-up' | 'slide-left' | 'slide-right' | 'scale-in';
+export type HoverPreset = 'lift' | 'grow' | 'glow' | 'color-shift';
+
+/** Phase 2B. Durations and delays in ms. */
+export type AnimationValue =
+  | {
+      type: 'entrance';
+      preset: EntrancePreset;
+      /** "load": when the page opens. "view": when the element scrolls into view. */
+      trigger: 'load' | 'view';
+      duration: number;
+      delay: number;
+      easing: string;
+    }
+  | {
+      type: 'hover';
+      preset: HoverPreset;
+      duration: number;
+      easing: string;
+      /** color-shift only: the background on hover. */
+      color?: string;
+    };
 
 export type TextOp = OpBase & { kind: 'text'; before: TextValue; after: TextValue };
 export type StyleOp = OpBase & { kind: 'style'; before: StyleMap; after: StyleMap };
@@ -87,7 +115,10 @@ export type ImageOp = OpBase & { kind: 'image'; before: ImageBefore; after: Imag
 /** A fix library block. The selector/fallback describe the anchor element it is placed against. */
 export type InsertBlockOp = OpBase & { kind: 'insertBlock'; before: null; after: BlockValue };
 
-export type Op = TextOp | StyleOp | HideOp | MoveOp | ImageOp | InsertBlockOp;
+/** Adds motion to an element (an entrance or a hover effect). The page's markup is untouched. */
+export type AnimationOp = OpBase & { kind: 'animation'; before: null; after: AnimationValue };
+
+export type Op = TextOp | StyleOp | HideOp | MoveOp | ImageOp | InsertBlockOp | AnimationOp;
 
 /** A user note. Linked from an op's noteId; numbered on the page in op order. */
 export interface Note {

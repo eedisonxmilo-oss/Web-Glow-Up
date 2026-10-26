@@ -205,6 +205,13 @@ export class FixLibrary {
     return card;
   }
 
+  /** Open one preset's form (used by the command palette). */
+  openPreset(id: string): void {
+    this.open = id;
+    this.renderPresets();
+    this.root.querySelector('.preset.open')?.scrollIntoView({ block: 'nearest' });
+  }
+
   /** Where the open preset would go, given the current selection. */
   private target(p: Preset): { el: Element; position: BlockPosition } | null {
     const sel = this.hooks.selected();

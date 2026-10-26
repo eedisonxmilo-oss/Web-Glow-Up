@@ -73,7 +73,7 @@ export class ExportPanel {
     this.q('.exp-status').textContent = text;
   }
 
-  private async run(kind: 'png' | 'pdf' | 'md' | 'txt'): Promise<void> {
+  async run(kind: 'png' | 'pdf' | 'md' | 'txt'): Promise<void> {
     if (this.busy) return;
     this.busy = true;
     void this.refresh();
