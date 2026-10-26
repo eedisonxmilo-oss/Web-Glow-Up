@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Website Glow-Up</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header>
+      <h1><span class="spark">✦</span> Website Glow-Up</h1>
+    </header>
+
+    <section class="current">
+      <div class="site" id="site"></div>
+      <button id="toggle" class="primary">Edit this page</button>
+      <p class="muted small" id="toggle-note">Shortcut: <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd></p>
+      <label class="check" id="auto-wrap">
+        <input type="checkbox" id="auto" />
+        <span>Restore my edits automatically on this site<br /><span class="muted small">Your browser asks once per site.</span></span>
+      </label>
+    </section>
+
+    <section>
+      <h2>Projects</h2>
+      <ul id="projects" class="projects"></ul>
+      <p id="empty" class="muted">No saved pages yet. Edit a page and it saves here automatically.</p>
+    </section>
+
+    <section>
+      <details id="agency">
+        <summary><h2>Agency branding</h2><span class="muted small">Shown on exported images and PDFs</span></summary>
+        <div class="agency-form">
+          <label class="row"><span>Agency name</span><input type="text" id="agency-name" maxlength="80" placeholder="Your agency" /></label>
+          <div class="row">
+            <span>Logo</span>
+            <div class="logo-ctl">
+              <img id="agency-logo-preview" class="logo-preview hidden" alt="Agency logo" />
+              <button class="mini" id="agency-logo-pick">Choose image…</button>
+              <button class="mini danger hidden" id="agency-logo-remove">Remove</button>
+              <input type="file" id="agency-logo" accept="image/*" class="hidden" />
+            </div>
+          </div>
+          <label class="row"><span>Accent color</span><input type="color" id="agency-accent" /></label>
+          <div class="row">
+            <span>Before / after</span>
+            <div class="seg">
+              <label><input type="radio" name="agency-layout" value="side" /> Side by side</label>
+              <label><input type="radio" name="agency-layout" value="stacked" /> Stacked</label>
+            </div>
+          </div>
+          <p class="muted small" id="agency-saved">Saved on this device only.</p>
+        </div>
+      </details>
+    </section>
+
+    <footer class="muted small">Free. Nothing leaves your device.</footer>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

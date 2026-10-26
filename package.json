@@ -1,0 +1,29 @@
+{
+  "name": "website-glow-up",
+  "description": "Edit any live web page in place, locally. Nothing leaves your device.",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox --mv3",
+    "build:all": "wxt build && wxt build -b firefox --mv3",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox --mv3",
+    "compile": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "harness": "esbuild dev/harness.ts --bundle --format=iife --target=es2020 --outfile=dev/harness.js && node dev/serve-harness.mjs",
+    "postinstall": "wxt prepare"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "fake-indexeddb": "^6.2.6",
+    "jsdom": "^26.1.0",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.7",
+    "wxt": "~0.20.27"
+  }
+}
